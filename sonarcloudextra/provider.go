@@ -11,6 +11,12 @@ import (
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
+			"token": {
+				Type:        schema.TypeString,
+				Required:    true,
+				Sensitive:   true,
+				DefaultFunc: schema.EnvDefaultFunc("SONARCLOUD_TOKEN", nil),
+			},
 			"num_retries": {
 				Type:        schema.TypeInt,
 				Optional:    true,
@@ -22,7 +28,9 @@ func Provider() *schema.Provider {
 				DefaultFunc: schema.EnvDefaultFunc("SONARCLOUD_RETRY_DELAY", 30),
 			},
 		},
-		ResourcesMap:         map[string]*schema.Resource{},
+		ResourcesMap: map[string]*schema.Resource{
+			"sonarcloudextra_project": resourceProject(),
+		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,
 	}
@@ -31,9 +39,10 @@ func Provider() *schema.Provider {
 func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	numRetries := d.Get("num_retries").(int)
 	retryDelay := d.Get("retry_delay").(int)
+	token := d.Get("token").(string)
 
 	var diags diag.Diagnostics
-	c, err := client.NewClient(numRetries, retryDelay)
+	c, err := client.NewClient(numRetries, retryDelay, token)
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}

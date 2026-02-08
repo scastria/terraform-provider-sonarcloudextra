@@ -3,6 +3,7 @@ module github.com/scastria/terraform-provider-sonarcloudextra
 go 1.19
 
 require (
+	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.26.1
 )

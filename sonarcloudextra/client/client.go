@@ -15,20 +15,22 @@ import (
 const (
 	ApplicationJson   = "application/json"
 	Bearer            = "Bearer"
-	SonarCloudBaseUrl = "https://XXX.YYY.com/api/v1"
+	SonarCloudBaseUrl = "https://sonarcloud.io"
 )
 
 type Client struct {
 	numRetries int
 	retryDelay int
 	httpClient *http.Client
+	token      string
 }
 
-func NewClient(numRetries int, retryDelay int) (*Client, error) {
+func NewClient(numRetries int, retryDelay int, token string) (*Client, error) {
 	c := &Client{
 		numRetries: numRetries,
 		retryDelay: retryDelay,
 		httpClient: &http.Client{},
+		token:      token,
 	}
 	return c, nil
 }
@@ -55,6 +57,9 @@ func (c *Client) HttpRequest(ctx context.Context, method string, path string, qu
 				req.Header.Add(key, value)
 			}
 		}
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("%s %s", Bearer, c.token))
 	}
 	requestDump, err := httputil.DumpRequest(req, true)
 	if err != nil {

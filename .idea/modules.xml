@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/terraform-provider-sonarcloudextra.iml" filepath="$PROJECT_DIR$/.idea/terraform-provider-sonarcloudextra.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../terraform-provider-sumologicextra/.idea/terraform-provider-sumologicextra.iml" filepath="$PROJECT_DIR$/../terraform-provider-sumologicextra/.idea/terraform-provider-sumologicextra.iml" />
     </modules>
   </component>
 </project>
