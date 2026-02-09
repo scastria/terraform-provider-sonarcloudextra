@@ -19,18 +19,18 @@ const (
 )
 
 type Client struct {
+	token      string
 	numRetries int
 	retryDelay int
 	httpClient *http.Client
-	token      string
 }
 
-func NewClient(numRetries int, retryDelay int, token string) (*Client, error) {
+func NewClient(token string, numRetries int, retryDelay int) (*Client, error) {
 	c := &Client{
+		token:      token,
 		numRetries: numRetries,
 		retryDelay: retryDelay,
 		httpClient: &http.Client{},
-		token:      token,
 	}
 	return c, nil
 }

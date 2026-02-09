@@ -37,12 +37,12 @@ func Provider() *schema.Provider {
 }
 
 func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+	token := d.Get("token").(string)
 	numRetries := d.Get("num_retries").(int)
 	retryDelay := d.Get("retry_delay").(int)
-	token := d.Get("token").(string)
 
 	var diags diag.Diagnostics
-	c, err := client.NewClient(numRetries, retryDelay, token)
+	c, err := client.NewClient(token, numRetries, retryDelay)
 	if err != nil {
 		return nil, diag.FromErr(err)
 	}

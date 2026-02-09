@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     sonarcloudextra = {
-      source  = "scastria/sonarcloudextra"
+      source  = "github.com/scastria/sonarcloudextra"
     }
   }
 }
