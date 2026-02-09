@@ -57,8 +57,8 @@ func resourceProject() *schema.Resource {
 func fillProject(c *client.Project, d *schema.ResourceData) {
 	c.Organization = d.Get("organization").(string)
 	c.Name = d.Get("name").(string)
-	normalizedName := strings.ReplaceAll(p.Name, "-", "_")
-	c.ProjectKey = fmt.Sprintf("%s_%s", p.Organization, normalizedName)
+	normalizedName := strings.ReplaceAll(c.Name, "-", "_")
+	c.ProjectKey = fmt.Sprintf("%s_%s", c.Organization, normalizedName)
 	c.InstallationKeys = d.Get("installation_keys").(string)
 	c.UseExisting = d.Get("use_existing").(bool)
 }
