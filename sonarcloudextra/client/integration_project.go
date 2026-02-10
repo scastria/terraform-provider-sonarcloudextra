@@ -1,10 +1,10 @@
 package client
 
 const (
-	ProjectSearchPath        = "api/projects/search%s"
-	ProjectsDeletePath       = "api/projects/delete%s"
-	AlmProvisionProjectsPath = "api/alm_integration/provision_projects%s"
-	AlmListRepositoriesPath  = "api/alm_integration/list_repositories%s"
+	ProjectSearchPath        = "api/projects/search"
+	ProjectsDeletePath       = "api/projects/delete"
+	AlmProvisionProjectsPath = "api/alm_integration/provision_projects"
+	AlmListRepositoriesPath  = "api/alm_integration/list_repositories"
 )
 
 type Project struct {
