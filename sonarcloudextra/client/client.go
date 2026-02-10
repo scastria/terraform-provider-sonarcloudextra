@@ -14,6 +14,7 @@ import (
 
 const (
 	ApplicationJson   = "application/json"
+	FormUrlEncoded    = "application/x-www-form-urlencoded"
 	Bearer            = "Bearer"
 	SonarCloudBaseUrl = "https://sonarcloud.io"
 )

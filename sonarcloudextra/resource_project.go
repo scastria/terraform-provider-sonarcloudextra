@@ -57,8 +57,7 @@ func resourceProject() *schema.Resource {
 func fillProject(c *client.Project, d *schema.ResourceData) {
 	c.Organization = d.Get("organization").(string)
 	c.Name = d.Get("name").(string)
-	normalizedName := strings.ReplaceAll(c.Name, "-", "_")
-	c.ProjectKey = fmt.Sprintf("%s_%s", c.Organization, normalizedName)
+	c.ProjectKey = fmt.Sprintf("%s_%s", c.Organization, c.Name)
 	c.InstallationKeys = d.Get("installation_keys").(string)
 	c.UseExisting = d.Get("use_existing").(bool)
 }
@@ -81,9 +80,7 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 	if newProject.UseExisting {
 		requestPath := fmt.Sprintf(client.ProjectSearchPath, "")
 		requestPath = strings.TrimLeft(requestPath, "/")
-		query := url.Values{}
-		query.Set("organization", newProject.Organization)
-		query.Set("projects", newProject.ProjectKey)
+		query := url.Values{"organization": []string{newProject.Organization}, "projects": []string{newProject.ProjectKey}}
 		body, err = c.HttpRequest(ctx, http.MethodGet, requestPath, query, nil, &bytes.Buffer{})
 		if err != nil {
 			re := err.(*client.RequestError)
@@ -110,12 +107,8 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 	if body == nil {
 		requestPath := fmt.Sprintf(client.AlmProvisionProjectsPath, "")
 		requestPath = strings.TrimLeft(requestPath, "/")
-		form := url.Values{}
-		form.Set("installationKeys", newProject.InstallationKeys)
-		form.Set("organization", newProject.Organization)
-		requestHeaders := http.Header{
-			headers.ContentType: []string{"application/x-www-form-urlencoded"},
-		}
+		form := url.Values{"installationKeys": []string{newProject.InstallationKeys}, "organization": []string{newProject.Organization}}
+		requestHeaders := http.Header{headers.ContentType: []string{client.FormUrlEncoded}}
 		buf := bytes.NewBufferString(form.Encode())
 		_, err = c.HttpRequest(ctx, http.MethodPost, requestPath, nil, requestHeaders, buf)
 		if err != nil {
@@ -124,8 +117,7 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 		}
 		verifyPath := fmt.Sprintf(client.AlmListRepositoriesPath, "")
 		verifyPath = strings.TrimLeft(verifyPath, "/")
-		vquery := url.Values{}
-		vquery.Set("organization", newProject.Organization)
+		vquery := url.Values{"organization": []string{newProject.Organization}}
 		var linkedKey string
 		for i := 0; i < 10; i++ {
 			vbody, verr := c.HttpRequest(ctx, http.MethodGet, verifyPath, vquery, nil, &bytes.Buffer{})
@@ -153,17 +145,11 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 
 			time.Sleep(2 * time.Second)
 		}
-		if linkedKey == "" {
-			d.SetId("")
-			return diag.Errorf(
-				"provision call returned success but linked project not found via list_repositories (organization=%s installation_keys=%s)",
-				newProject.Organization,
-				newProject.InstallationKeys,
-			)
+		if linkedKey != "" {
+			newProject.ProjectKey = linkedKey
 		}
-		newProject.ProjectKey = linkedKey
 		fillResourceDataFromProject(&newProject, d)
-		d.SetId(linkedKey)
+		d.SetId(newProject.ProjectKey)
 		return diags
 	}
 	retVal := &client.ProjectComponent{}
@@ -182,9 +168,6 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
 	projectKey := d.Id()
-	if projectKey == "" {
-		projectKey = d.Get("project_key").(string)
-	}
 	org := d.Get("organization").(string)
 	if org == "" && projectKey != "" {
 		parts := strings.SplitN(projectKey, "_", 2)
@@ -193,15 +176,9 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 			_ = d.Set("organization", org)
 		}
 	}
-	if org == "" {
-		d.SetId("")
-		return diag.Errorf("organization is missing and could not be derived from id=%s", projectKey)
-	}
 	requestPath := fmt.Sprintf(client.ProjectSearchPath, "")
 	requestPath = strings.TrimLeft(requestPath, "/")
-	query := url.Values{}
-	query.Set("organization", org)
-	query.Set("projects", projectKey)
+	query := url.Values{"organization": []string{org}, "projects": []string{projectKey}}
 	body, err := c.HttpRequest(ctx, http.MethodGet, requestPath, query, nil, &bytes.Buffer{})
 	if err != nil {
 		d.SetId("")
@@ -227,8 +204,7 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 	if d.Get("installation_keys").(string) == "" || d.Get("name").(string) == "" {
 		reposPath := fmt.Sprintf(client.AlmListRepositoriesPath, "")
 		reposPath = strings.TrimLeft(reposPath, "/")
-		rq := url.Values{}
-		rq.Set("organization", org)
+		rq := url.Values{"organization": []string{org}}
 		rbody, rerr := c.HttpRequest(ctx, http.MethodGet, reposPath, rq, nil, &bytes.Buffer{})
 		if rerr != nil {
 			return diag.FromErr(rerr)
@@ -260,13 +236,9 @@ func resourceProjectDelete(ctx context.Context, d *schema.ResourceData, m interf
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
 	projectKey := d.Id()
-	if projectKey == "" {
-		projectKey = d.Get("project_key").(string)
-	}
 	requestPath := fmt.Sprintf(client.ProjectsDeletePath, "")
 	requestPath = strings.TrimLeft(requestPath, "/")
-	query := url.Values{}
-	query.Set("project", projectKey)
+	query := url.Values{"project": []string{projectKey}}
 	_, err := c.HttpRequest(ctx, http.MethodPost, requestPath, query, nil, &bytes.Buffer{})
 	if err != nil {
 		return diag.FromErr(err)
