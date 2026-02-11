@@ -1,5 +1,7 @@
 package client
 
+import "strings"
+
 const (
 	ProjectSearchPath        = "api/projects/search"
 	ProjectsDeletePath       = "api/projects/delete"
@@ -7,12 +9,11 @@ const (
 	AlmListRepositoriesPath  = "api/alm_integration/list_repositories"
 )
 
-type Project struct {
-	Organization     string `json:"-"`
-	Name             string `json:"-"`
-	ProjectKey       string `json:"-"`
-	InstallationKeys string `json:"-"`
-	UseExisting      bool   `json:"-"`
+type IntegrationProject struct {
+	Organization      string
+	Name              string
+	BitbucketRepoUuid string
+	UseExisting       bool
 }
 
 type ProjectSearchResponse struct {
@@ -20,8 +21,10 @@ type ProjectSearchResponse struct {
 }
 
 type ProjectComponent struct {
-	Key  string `json:"key,omitempty"`
-	Name string `json:"name,omitempty"`
+	Organization string `json:"organization,omitempty"`
+	Key          string `json:"key,omitempty"`
+	Name         string `json:"name,omitempty"`
+	UseExisting  bool   `json:"-"`
 }
 
 type AlmListRepositoriesResponse struct {
@@ -29,8 +32,19 @@ type AlmListRepositoriesResponse struct {
 }
 
 type AlmRepository struct {
-	Label           string             `json:"label,omitempty"`
 	InstallationKey string             `json:"installationKey,omitempty"`
 	LinkedProjects  []ProjectComponent `json:"linkedProjects,omitempty"`
-	Private         bool               `json:"private,omitempty"`
+}
+
+func (ip *IntegrationProject) IntegrationProjectEncodeId() string {
+	return ip.Organization + IdSeparator + ip.Name
+}
+
+func IntegrationProjectDecodeId(s string) (string, string) {
+	tokens := strings.Split(s, IdSeparator)
+	return tokens[0], tokens[1]
+}
+
+func IntegrationProjectEncodeSonarId(s1 string, s2 string) string {
+	return s1 + SonarSeparator + s2
 }

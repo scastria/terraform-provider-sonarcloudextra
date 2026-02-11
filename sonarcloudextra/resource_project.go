@@ -4,11 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
-	"time"
 
 	"github.com/go-http-utils/headers"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -20,7 +17,6 @@ func resourceProject() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceProjectCreate,
 		ReadContext:   resourceProjectRead,
-		UpdateContext: resourceProjectUpdate,
 		DeleteContext: resourceProjectDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
@@ -33,13 +29,10 @@ func resourceProject() *schema.Resource {
 			},
 			"name": {
 				Type:     schema.TypeString,
-				Optional: true,
+				Required: true,
+				ForceNew: true,
 			},
-			"project_key": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-			"installation_keys": {
+			"bitbucket_repo_uuid": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -47,6 +40,7 @@ func resourceProject() *schema.Resource {
 			"use_existing": {
 				Type:             schema.TypeBool,
 				Optional:         true,
+				ForceNew:         true,
 				Default:          false,
 				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool { return d.Id() != "" },
 			},
@@ -54,192 +48,134 @@ func resourceProject() *schema.Resource {
 	}
 }
 
-func fillProject(c *client.Project, d *schema.ResourceData) {
+func fillIntegrationProject(c *client.IntegrationProject, d *schema.ResourceData) {
 	c.Organization = d.Get("organization").(string)
 	c.Name = d.Get("name").(string)
-	c.ProjectKey = fmt.Sprintf("%s_%s", c.Organization, c.Name)
-	c.InstallationKeys = d.Get("installation_keys").(string)
+	c.BitbucketRepoUuid = d.Get("bitbucket_repo_uuid").(string)
 	c.UseExisting = d.Get("use_existing").(bool)
 }
 
-func fillResourceDataFromProject(c *client.Project, d *schema.ResourceData) {
+func fillResourceDataFromProjectComponent(c *client.ProjectComponent, d *schema.ResourceData) {
 	d.Set("organization", c.Organization)
 	d.Set("name", c.Name)
-	d.Set("project_key", c.ProjectKey)
-	d.Set("installation_keys", c.InstallationKeys)
 	d.Set("use_existing", c.UseExisting)
+}
+
+func fillResourceDataFromAlmRepository(c *client.AlmRepository, d *schema.ResourceData) {
+	d.Set("bitbucket_repo_uuid", c.InstallationKey)
 }
 
 func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
-	newProject := client.Project{}
-	fillProject(&newProject, d)
-	var body *bytes.Buffer = nil
-	var err error
-	if newProject.UseExisting {
+	newIntegrationProject := client.IntegrationProject{}
+	fillIntegrationProject(&newIntegrationProject, d)
+	foundExisting := false
+	if newIntegrationProject.UseExisting {
 		query := url.Values{
-			"organization": []string{newProject.Organization},
-			"projects":     []string{newProject.ProjectKey},
+			"organization": []string{newIntegrationProject.Organization},
+			"projects":     []string{client.IntegrationProjectEncodeSonarId(newIntegrationProject.Organization, newIntegrationProject.Name)},
 		}
-		body, err = c.HttpRequest(ctx, http.MethodGet, client.ProjectSearchPath, query, nil, &bytes.Buffer{})
-		if err != nil {
-			re := err.(*client.RequestError)
-			if re.StatusCode != http.StatusNotFound {
-				return diag.FromErr(err)
-			}
-			body = nil
-		} else {
-			searchResp := &client.ProjectSearchResponse{}
-			derr := json.NewDecoder(body).Decode(searchResp)
-			if derr != nil {
-				d.SetId("")
-				return diag.FromErr(derr)
-			}
-			if len(searchResp.Components) == 0 {
-				body = nil
-			} else {
-				tmp := bytes.Buffer{}
-				_ = json.NewEncoder(&tmp).Encode(searchResp.Components[0])
-				body = &tmp
-			}
-		}
-	}
-	if body == nil {
-		form := url.Values{
-			"installationKeys": []string{newProject.InstallationKeys},
-			"organization":     []string{newProject.Organization},
-		}
-		requestHeaders := http.Header{headers.ContentType: []string{client.FormUrlEncoded}}
-		buf := bytes.NewBufferString(form.Encode())
-		_, err = c.HttpRequest(ctx, http.MethodPost, client.AlmProvisionProjectsPath, nil, requestHeaders, buf)
+		body, err := c.HttpRequest(ctx, http.MethodGet, client.ProjectSearchPath, query, nil, &bytes.Buffer{})
 		if err != nil {
 			d.SetId("")
 			return diag.FromErr(err)
 		}
-		vquery := url.Values{
-			"organization": []string{newProject.Organization},
+		searchResp := &client.ProjectSearchResponse{}
+		err = json.NewDecoder(body).Decode(searchResp)
+		if err != nil {
+			d.SetId("")
+			return diag.FromErr(err)
 		}
-		var linkedKey string
-		for i := 0; i < 10; i++ {
-			vbody, verr := c.HttpRequest(ctx, http.MethodGet, client.AlmListRepositoriesPath, vquery, nil, &bytes.Buffer{})
-			if verr != nil {
-				d.SetId("")
-				return diag.FromErr(verr)
-			}
-			reposResp := &client.AlmListRepositoriesResponse{}
-			vderr := json.NewDecoder(vbody).Decode(reposResp)
-			if vderr != nil {
-				d.SetId("")
-				return diag.FromErr(vderr)
-			}
-			for _, r := range reposResp.Repositories {
-				if r.InstallationKey == newProject.InstallationKeys {
-					if len(r.LinkedProjects) > 0 {
-						linkedKey = r.LinkedProjects[0].Key
-					}
-					break
-				}
-			}
-			if linkedKey != "" {
-				break
-			}
-
-			time.Sleep(2 * time.Second)
+		if len(searchResp.Components) == 1 {
+			foundExisting = true
 		}
-		if linkedKey != "" {
-			newProject.ProjectKey = linkedKey
-		}
-		fillResourceDataFromProject(&newProject, d)
-		d.SetId(newProject.ProjectKey)
-		return diags
 	}
-	retVal := &client.ProjectComponent{}
-	err = json.NewDecoder(body).Decode(retVal)
-	if err != nil {
-		d.SetId("")
-		return diag.FromErr(err)
+	if !foundExisting {
+		form := url.Values{
+			"organization":           []string{newIntegrationProject.Organization},
+			"installationKeys":       []string{newIntegrationProject.BitbucketRepoUuid},
+			"newCodeDefinitionType":  []string{"previous_version"},
+			"newCodeDefinitionValue": []string{"previous_version"},
+		}
+		requestHeaders := http.Header{
+			headers.ContentType: []string{client.FormUrlEncoded},
+		}
+		buf := bytes.NewBufferString(form.Encode())
+		_, err := c.HttpRequest(ctx, http.MethodPost, client.AlmProvisionProjectsPath, nil, requestHeaders, buf)
+		if err != nil {
+			d.SetId("")
+			return diag.FromErr(err)
+		}
 	}
-	newProject.ProjectKey = retVal.Key
-	fillResourceDataFromProject(&newProject, d)
-	d.SetId(retVal.Key)
+	d.SetId(newIntegrationProject.IntegrationProjectEncodeId())
 	return diags
 }
 
 func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
-	projectKey := d.Id()
-	org := d.Get("organization").(string)
-	if org == "" && projectKey != "" {
-		parts := strings.SplitN(projectKey, "_", 2)
-		if len(parts) > 0 {
-			org = parts[0]
-			_ = d.Set("organization", org)
-		}
-	}
+	organization, name := client.IntegrationProjectDecodeId(d.Id())
+	projectKey := client.IntegrationProjectEncodeSonarId(organization, name)
 	query := url.Values{
-		"organization": []string{org},
+		"organization": []string{organization},
 		"projects":     []string{projectKey},
 	}
 	body, err := c.HttpRequest(ctx, http.MethodGet, client.ProjectSearchPath, query, nil, &bytes.Buffer{})
 	if err != nil {
 		d.SetId("")
-		re := err.(*client.RequestError)
-		if re.StatusCode == http.StatusNotFound {
-			return diags
-		}
 		return diag.FromErr(err)
 	}
 	searchResp := &client.ProjectSearchResponse{}
-	derr := json.NewDecoder(body).Decode(searchResp)
-	if derr != nil {
+	err = json.NewDecoder(body).Decode(searchResp)
+	if err != nil {
 		d.SetId("")
-		return diag.FromErr(derr)
+		return diag.FromErr(err)
 	}
 	if len(searchResp.Components) == 0 {
 		d.SetId("")
 		return diags
 	}
-	projectKey = searchResp.Components[0].Key
-	d.SetId(projectKey)
-	if d.Get("installation_keys").(string) == "" || d.Get("name").(string) == "" {
-		rq := url.Values{
-			"organization": []string{org},
-		}
-		rbody, rerr := c.HttpRequest(ctx, http.MethodGet, client.AlmListRepositoriesPath, rq, nil, &bytes.Buffer{})
-		if rerr != nil {
-			return diag.FromErr(rerr)
-		}
-		reposResp := &client.AlmListRepositoriesResponse{}
-		rderr := json.NewDecoder(rbody).Decode(reposResp)
-		if rderr != nil {
-			return diag.FromErr(rderr)
-		}
-		for _, r := range reposResp.Repositories {
-			for _, lp := range r.LinkedProjects {
-				if lp.Key == projectKey {
-					_ = d.Set("installation_keys", r.InstallationKey)
-					_ = d.Set("name", r.Label)
-					_ = d.Set("use_existing", true)
-					return diags
-				}
+	searchProject := searchResp.Components[0]
+	query = url.Values{
+		"organization": []string{organization},
+	}
+	body, err = c.HttpRequest(ctx, http.MethodGet, client.AlmListRepositoriesPath, query, nil, &bytes.Buffer{})
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	reposResp := &client.AlmListRepositoriesResponse{}
+	err = json.NewDecoder(body).Decode(reposResp)
+	if err != nil {
+		return diag.FromErr(err)
+	}
+	var almRepository *client.AlmRepository = nil
+	for _, r := range reposResp.Repositories {
+		for _, lp := range r.LinkedProjects {
+			if lp.Key == projectKey {
+				almRepository = &r
+				break
 			}
 		}
+		if almRepository != nil {
+			break
+		}
 	}
+	if almRepository == nil {
+		d.SetId("")
+		return diags
+	}
+	fillResourceDataFromProjectComponent(&searchProject, d)
+	fillResourceDataFromAlmRepository(almRepository, d)
 	return diags
-}
-
-func resourceProjectUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	return resourceProjectRead(ctx, d, m)
 }
 
 func resourceProjectDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
-	projectKey := d.Id()
+	organization, name := client.IntegrationProjectDecodeId(d.Id())
 	query := url.Values{
-		"project": []string{projectKey},
+		"project": []string{client.IntegrationProjectEncodeSonarId(organization, name)},
 	}
 	_, err := c.HttpRequest(ctx, http.MethodPost, client.ProjectsDeletePath, query, nil, &bytes.Buffer{})
 	if err != nil {
