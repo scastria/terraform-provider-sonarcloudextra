@@ -29,7 +29,7 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"sonarcloudextra_integration_project": resourceProject(),
+			"sonarcloudextra_integration_project": resourceIntegrationProject(),
 		},
 		DataSourcesMap:       map[string]*schema.Resource{},
 		ConfigureContextFunc: providerConfigure,

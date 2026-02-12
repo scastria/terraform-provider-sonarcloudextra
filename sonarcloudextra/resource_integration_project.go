@@ -13,7 +13,7 @@ import (
 	"github.com/scastria/terraform-provider-sonarcloudextra/sonarcloudextra/client"
 )
 
-func resourceProject() *schema.Resource {
+func resourceIntegrationProject() *schema.Resource {
 	return &schema.Resource{
 		CreateContext: resourceIntegrationProjectCreate,
 		ReadContext:   resourceIntegrationProjectRead,

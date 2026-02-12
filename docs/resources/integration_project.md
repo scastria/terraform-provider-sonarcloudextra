@@ -1,12 +1,19 @@
 # Resource: sonarcloudextra_integration_project
-Represents a integration_project
+Represents an integration_project
 ## Example usage
 ```hcl
-resource "sonarcloudextra_integration_project" "sonar_test" {
+data "bitbucket_project" "proj" {
+  key = "MyProjectKey"
+}
+resource "bitbucket_repository" "repo" {
+  project_id = data.bitbucket_project.proj.id
+  name = "My Repo"
+  is_private = true
+}
+resource "sonarcloudextra_integration_project" "example" {
   organization        = "your_sonar_organization"
   name                = bitbucket_repository.repo.name
   bitbucket_repo_uuid = bitbucket_repository.repo.id
-  use_existing        = true
 }
 ```
 ## Argument Reference
