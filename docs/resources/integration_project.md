@@ -2,8 +2,11 @@
 Represents a integration_project
 ## Example usage
 ```hcl
-resource "sonarcloudextra_integration_project" "sonar-test" {
+resource "sonarcloudextra_integration_project" "sonar_test" {
+  organization        = "your_sonar_organization"
+  name                = bitbucket_repository.repo.name
   bitbucket_repo_uuid = bitbucket_repository.repo.id
+  use_existing        = true
 }
 ```
 ## Argument Reference
