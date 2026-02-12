@@ -16,24 +16,24 @@ type IntegrationProject struct {
 	UseExisting       bool
 }
 
-type ProjectSearchResponse struct {
-	Components []ProjectComponent `json:"components,omitempty"`
+type IntegrationProjectSearchResponse struct {
+	Components []IntegrationProjectComponent `json:"components,omitempty"`
 }
 
-type ProjectComponent struct {
+type IntegrationProjectComponent struct {
 	Organization string `json:"organization,omitempty"`
 	Key          string `json:"key,omitempty"`
 	Name         string `json:"name,omitempty"`
 	UseExisting  bool   `json:"-"`
 }
 
-type AlmListRepositoriesResponse struct {
+type IntegrationAlmListRepositoriesResponse struct {
 	Repositories []AlmRepository `json:"repositories,omitempty"`
 }
 
 type AlmRepository struct {
-	InstallationKey string             `json:"installationKey,omitempty"`
-	LinkedProjects  []ProjectComponent `json:"linkedProjects,omitempty"`
+	InstallationKey string                        `json:"installationKey,omitempty"`
+	LinkedProjects  []IntegrationProjectComponent `json:"linkedProjects,omitempty"`
 }
 
 func (ip *IntegrationProject) IntegrationProjectEncodeId() string {

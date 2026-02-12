@@ -24,7 +24,7 @@ resource "bitbucket_repository" "repo" {
   use_existing = true
 }
 
-resource "sonarcloudextra_project" "sonar-test" {
+resource "sonarcloudextra_integration_project" "sonar-test" {
   organization      = "greenstreetadvisors"
   name              = bitbucket_repository.repo.name
   bitbucket_repo_uuid = bitbucket_repository.repo.id

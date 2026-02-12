@@ -15,9 +15,9 @@ import (
 
 func resourceProject() *schema.Resource {
 	return &schema.Resource{
-		CreateContext: resourceProjectCreate,
-		ReadContext:   resourceProjectRead,
-		DeleteContext: resourceProjectDelete,
+		CreateContext: resourceIntegrationProjectCreate,
+		ReadContext:   resourceIntegrationProjectRead,
+		DeleteContext: resourceIntegrationProjectDelete,
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
@@ -55,17 +55,17 @@ func fillIntegrationProject(c *client.IntegrationProject, d *schema.ResourceData
 	c.UseExisting = d.Get("use_existing").(bool)
 }
 
-func fillResourceDataFromProjectComponent(c *client.ProjectComponent, d *schema.ResourceData) {
+func fillIntegrationResourceDataFromProjectComponent(c *client.IntegrationProjectComponent, d *schema.ResourceData) {
 	d.Set("organization", c.Organization)
 	d.Set("name", c.Name)
 	d.Set("use_existing", c.UseExisting)
 }
 
-func fillResourceDataFromAlmRepository(c *client.AlmRepository, d *schema.ResourceData) {
+func fillIntegrationResourceDataFromAlmRepository(c *client.AlmRepository, d *schema.ResourceData) {
 	d.Set("bitbucket_repo_uuid", c.InstallationKey)
 }
 
-func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceIntegrationProjectCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
 	newIntegrationProject := client.IntegrationProject{}
@@ -81,7 +81,7 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 			d.SetId("")
 			return diag.FromErr(err)
 		}
-		searchResp := &client.ProjectSearchResponse{}
+		searchResp := &client.IntegrationProjectSearchResponse{}
 		err = json.NewDecoder(body).Decode(searchResp)
 		if err != nil {
 			d.SetId("")
@@ -112,7 +112,7 @@ func resourceProjectCreate(ctx context.Context, d *schema.ResourceData, m interf
 	return diags
 }
 
-func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceIntegrationProjectRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
 	organization, name := client.IntegrationProjectDecodeId(d.Id())
@@ -126,7 +126,7 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 		d.SetId("")
 		return diag.FromErr(err)
 	}
-	searchResp := &client.ProjectSearchResponse{}
+	searchResp := &client.IntegrationProjectSearchResponse{}
 	err = json.NewDecoder(body).Decode(searchResp)
 	if err != nil {
 		d.SetId("")
@@ -144,7 +144,7 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	reposResp := &client.AlmListRepositoriesResponse{}
+	reposResp := &client.IntegrationAlmListRepositoriesResponse{}
 	err = json.NewDecoder(body).Decode(reposResp)
 	if err != nil {
 		return diag.FromErr(err)
@@ -165,12 +165,12 @@ func resourceProjectRead(ctx context.Context, d *schema.ResourceData, m interfac
 		d.SetId("")
 		return diags
 	}
-	fillResourceDataFromProjectComponent(&searchProject, d)
-	fillResourceDataFromAlmRepository(almRepository, d)
+	fillIntegrationResourceDataFromProjectComponent(&searchProject, d)
+	fillIntegrationResourceDataFromAlmRepository(almRepository, d)
 	return diags
 }
 
-func resourceProjectDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
+func resourceIntegrationProjectDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	var diags diag.Diagnostics
 	c := m.(*client.Client)
 	organization, name := client.IntegrationProjectDecodeId(d.Id())
